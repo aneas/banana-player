@@ -1,0 +1,305 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML Basic 1.1//EN" "http://www.w3.org/TR/xhtml-basic/xhtml-basic11.dtd">
+<html>
+	<head>
+		<title>Banana Play</title>
+		<meta name="mobile-web-app-capable" content="yes">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+		<link rel="icon" type="image/png" href="/favicon.png">
+
+		<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+
+		<style>
+			/* Roboto font */
+			@import url(http://fonts.googleapis.com/css?family=Roboto:400,300,700);
+			body { font-family: 'Roboto', sans-serif; }
+
+			/* enlarge .ui-container to the full screen */
+			html { height: 100vh; }
+			body { margin: 0; height: 100vh; }
+			.ui-container { height: 100vh; }
+
+			/* vertical layout */
+			.ui-container { display: flex; flex-direction: column; }
+
+			/* tab bar */
+			.ui-tabs { flex-grow: 1; display: flex; flex-direction: column; background: #555; color: #eee; overflow-y: scroll; }
+			.ui-tab-buttons { display: flex; flex-shrink: 0; background: #222; color: #888; box-shadow: 0 0 5px #000; position: relative; z-index: 1000; }
+			.ui-tab-button  { flex-grow: 1; flex-basis: 0; text-align: center; text-transform: uppercase; line-height: 2em; padding-top: 3px; border-bottom: 3px solid transparent; transition: border-color .2s ease-in-out; }
+			.ui-tab-button.active { color: #eee; border-bottom: 3px solid #0099f5; }
+			.ui-tab-pages { flex-grow: 1; display: flex; overflow-y: scroll; }
+			.ui-tab-page { flex-grow: 1; overflow-y: scroll; }
+
+			/* browser */
+			.ui-browser { display: flex; flex-direction: column; }
+			.ui-browser-up { flex-shrink: 0; background: rgba(0, 0, 0, 0.3); font-weight: bold; white-space: nowrap; padding: 0 10px; line-height: 2em; text-overflow: ellipsis; overflow-x: hidden; box-shadow: 0 0 5px #000; position: relative; z-index: 100; }
+			.ui-browser-up i { font-size: 12px; width: 20px; }
+			.ui-browser-entries { flex-grow: 1; overflow-y: scroll; }
+			.ui-browser-entries .entry { white-space: nowrap; padding: 0 10px; line-height: 2em; text-overflow: ellipsis; overflow-x: hidden; border-top: 1px solid #666; border-bottom: 1px solid #444; }
+			.ui-browser-entries .entry i { font-size: 12px; width: 20px; }
+			.ui-browser-entries .entry.file { display: flex; }
+			.ui-browser-entries .entry.file .name { flex-grow: 1; text-overflow: ellipsis; overflow-x: hidden; }
+			.ui-browser-entries .entry.file .size { flex-shrink: 0; color: #bbb; }
+
+			/* player */
+			.player { flex-shrink: 0; margin-top: -10px; padding-top: 10px; background: transparent 50% 0 url(player-border.png) no-repeat; color: #eee; text-align: center; position: relative; }
+			.player .buttons { display: flex; justify-content: center; align-items: center; background: #222; padding: 0 20px; }
+			.player button { border: 0; background: none; padding: 0; margin: 0; outline: none; color: #eee; }
+			.player button i { font-size: 48px; }
+			#play-button i { font-size: 64px; color: #f59900; margin-top: -5px; }
+			#pause-button i { font-size: 64px; color: #0099f5; margin-top: -5px; }
+			#filename { flex-grow: 1; word-break: break-all; }
+		</style>
+	</head>
+	<body>
+		<div class="ui-container">
+			<div class="ui-tabs">
+				<div class="ui-tab-buttons">
+					<div class="ui-tab-button" data-tab-page="page-browser">Browser</div>
+					<div class="ui-tab-button" data-tab-page="page-info">Info</div>
+					<div class="ui-tab-button" data-tab-page="page-audio">Audio</div>
+				</div>
+				<div class="ui-tab-pages">
+ 					<div class="ui-tab-page ui-browser" id="page-browser" style="overflow:scroll;">
+ 						<div class="ui-browser-up" id="browser-up"><i class="material-icons md-light">arrow_back</i> <span id="browser-current-dir">/</span></div>
+						<div class="ui-browser-entries" id="browser-entries"></div>
+					</div>
+					<div class="ui-tab-page" id="page-info">Info</div>
+					<div class="ui-tab-page" id="page-audio">Audio</div>
+				</div>
+			</div>
+
+			<div id="player" class="player">
+				<div class="buttons">
+					<div id="position" style="flex-base: 0; flex-grow: 1; text-align: left;">0:00:00</div>
+					<button id="rewind1m-button"><i class="material-icons md-light" style="font-size:32px;">fast_rewind</i></button>
+					<button id="rewind10s-button"><i class="material-icons md-light">fast_rewind</i></button>
+					<button id="play-button"><i class="material-icons md-light">play_circle_outline</i></button>
+					<button id="pause-button"><i class="material-icons md-light">pause_circle_filled</i></button>
+					<button id="forward10s-button"><i class="material-icons md-light">fast_forward</i></button>
+					<button id="forward1m-button"><i class="material-icons md-light" style="font-size:32px;">fast_forward</i></button>
+					<div id="length" style="flex-base: 0; flex-grow: 1; text-align:right;">0:00:00</div>
+				</div>
+				<div style="padding: 10px 20px; background: #222;" id="position-clickarea">
+					<div style="height: 4px; background: #777; border-radius: 2px; position: relative;">
+						<div id="progress" style="width: 50%; height: 4px; background: #0099f5; border-radius: 2px;"></div>
+						<canvas id="position-slider" width="32" height="32" style="position: absolute; top: -14px; left: 50%; margin-left: -16px;"></canvas>
+					</div>
+				</div>
+				<div style="padding: 5px 15px; background: #222; display: flex; align-items: flex-start;">
+					<button id="fullscreen-button" style="flex-shrink:0; width:30px; text-align:left;"><i class="material-icons md-light" style="font-size: 24px;">aspect_ratio</i></button>
+					<div id="filename"></div>
+					<button id="stop-button" style="flex-shrink:0; width:30px; text-align:right;"><i class="material-icons md-light" style="font-size: 24px;">stop</i></button>
+				</div>
+			</div>
+		</div>
+
+		<script type="text/javascript" src="https://cdn.socket.io/socket.io-1.2.0.js"></script>
+		<script type="text/javascript" src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
+		<script type="text/javascript" src="http://labs.rampinteractive.co.uk/touchSwipe/jquery.touchSwipe.min.js"></script>
+
+		<script>
+			// this is all our explicit state for now
+			var directory = '/mnt/Data/Downloads/';
+
+			// initiate a socket.io connection
+			var socket = io();
+
+			// enable UI tabs
+			$('.ui-tabs').each(function() {
+				var tabs = this;
+
+				$(this).find('.ui-tab-page').hide();
+
+				$(this).find('.ui-tab-button').each(function(i) {
+					if(i == 0) {
+						$(this).addClass('active');
+						$('#' + $(this).data('tab-page')).show();
+					}
+
+					$(this).click(function() {
+						var activeButton = $(tabs).find('.ui-tab-button.active').first();
+						activeButton.removeClass('active');
+						$(this).addClass('active');
+						$('#' + activeButton.data('tab-page')).hide();
+						$('#' + $(this).data('tab-page')).show();
+					});
+				});
+
+				$(this).swipe({
+					swipeLeft: function(event, direction) {
+						var activeButton = $(tabs).find('.ui-tab-button.active').first();
+						var nextButton   = activeButton.next('.ui-tab-button');
+						if(nextButton.size() == 1) {
+							activeButton.removeClass('active');
+							nextButton.addClass('active');
+							$('#' + activeButton.data('tab-page')).hide();
+							$('#' + nextButton.data('tab-page')).show();
+						}
+					},
+					swipeRight: function(event, direction) {
+						var activeButton = $(tabs).find('.ui-tab-button.active').first();
+						var nextButton   = activeButton.prev('.ui-tab-button');
+						if(nextButton.size() == 1) {
+							activeButton.removeClass('active');
+							nextButton.addClass('active');
+							$('#' + activeButton.data('tab-page')).hide();
+							$('#' + nextButton.data('tab-page')).show();
+						}
+					}
+				});
+			});
+
+			// render the slider dynamically instead of using an image
+			var slider = $('#position-slider')[0];
+			var cx = slider.getContext('2d');
+			cx.beginPath();
+			cx.arc(15.5, 15.5, 15, 0.0, 2.0 * Math.PI);
+			cx.lineWidth = 1.1;
+			cx.strokeStyle = 'rgba(0, 153, 245, 0.5)';
+			cx.stroke();
+
+			cx.beginPath();
+			cx.arc(16, 16, 15, 0.0, 2.0 * Math.PI);
+			cx.fillStyle = 'rgba(0, 153, 245, 0.1)';
+			cx.fill();
+
+			cx.beginPath();
+			cx.arc(16, 16, 4, 0.0, 2.0 * Math.PI);
+			cx.fillStyle = 'rgb(0, 153, 245)';
+			cx.fill();
+
+			// main browser function
+			function browse(path) {
+				socket.emit('browse', path, function(result) {
+					directory = path;
+					$('#browser-current-dir').text(directory);
+
+					var entries = $('#browser-entries');
+					entries.html('');
+					result.directories.forEach(function(dir) {
+						entries.append($('<div>').addClass('entry directory').append('<i class="material-icons">folder</i>').append($('<span>').text(dir.name)).click(function() {
+							browse(directory + dir.name + '/');
+						}));
+					});
+
+					result.files.forEach(function(file) {
+						entries.append($('<div>').addClass('entry file').append($('<div>').addClass('name').text(file.name)).append($('<div>').addClass('size').text(formatSize(file.size))).click(function() {
+							socket.emit('command', { type: 'load', path: directory + file.name });
+						}));
+					});
+				});
+			}
+			browse(directory);
+
+			// wire up all buttons
+			$('#browser-up').click(function() {
+				if(directory != '/') {
+					var pos = directory.lastIndexOf('/', directory.length - 2);
+					browse(directory.substr(0, pos + 1));
+				}
+			});
+			$('#play-button').click(function() {
+				socket.emit('command', { type: 'pause' });
+			});
+			$('#pause-button').click(function() {
+				socket.emit('command', { type: 'pause' });
+			});
+			$('#fullscreen-button').click(function() {
+				socket.emit('command', { type: 'fullscreen' });
+			});
+			$('#stop-button').click(function() {
+				socket.emit('command', { type: 'stop' });
+			});
+			$('#rewind1m-button').click(function() {
+				socket.emit('command', { type: 'rewind1m' });
+			});
+			$('#rewind10s-button').click(function() {
+				socket.emit('command', { type: 'rewind10s' });
+			});
+			$('#forward10s-button').click(function() {
+				socket.emit('command', { type: 'forward10s' });
+			});
+			$('#forward1m-button').click(function() {
+				socket.emit('command', { type: 'forward1m' });
+			});
+			$('#position-clickarea').click(function(event) {
+				console.log(event);
+				var position;
+				if(event.pageX <= 15)
+					position = 0;
+				else if(event.pageX >= $(this).outerWidth() - 15)
+					position = 100;
+				else
+					position = 100 * (event.pageX - 15) / ($(this).outerWidth() - 30);
+				socket.emit('command', { type: 'seek', position: position });
+			});
+
+			// helper functions
+			function formatTime(x, max) {
+				x = Math.round(x);
+
+				var secs = x % 60;
+				x -= secs;
+				x  = x / 60;
+				secs = '' + (secs < 10 ? '0' : '') + secs;
+
+				var mins = x % 60;
+				x -= mins;
+				x  = x / 60;
+				mins = '' + (mins < 10 ? '0' : '') + mins;
+
+				var hours = x;
+
+				if(x < 60 * 60 && max < 60 * 60)
+					return mins + ':' + secs;
+				else
+					return '' + hours + ':' + mins + ':' + secs;
+			}
+
+			function formatSize(size) {
+				if(size < 1000)
+					return '' + size + ' B';
+
+				var units = ['kB', 'MB', 'GB', 'TB'];
+				size = Math.round(size / 100);
+				for(var i = 0; i < units.length; i++) {
+					if(size < 10000 || i + 1 == units.length) {
+						var str = '' + size;
+						if(str.length < 2)
+							str = '0' + str;
+						return str.substr(0, str.length - 1) + '.' + str.substr(-1) + ' ' + units[i];
+					}
+					else
+						size = Math.round(size / 1000);
+				}
+			}
+
+			// status update event handler
+			socket.on('status', function(status) {
+				if(status.loaded)
+					$('#player').show();
+				else
+					$('#player').hide();
+
+				$('#position').text(formatTime(status.position));
+				$('#length').text(formatTime(status.length));
+				$('#progress').css({ width: '' + (100 * status.position / status.length) + '%' });
+				$('#position-slider').css({ left: '' + (100 * status.position / status.length) + '%' });
+				if(status.filename == '')
+					$('#filename').text('Not playing');
+				else
+					$('#filename').text(status.filename);
+
+				if(status.loaded && !status.paused) {
+					$('#play-button').hide();
+					$('#pause-button').show();
+				}
+				else {
+					$('#play-button').show();
+					$('#pause-button').hide();
+				}
+			});
+		</script>
+	</body>
+</html>
