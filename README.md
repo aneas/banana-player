@@ -6,5 +6,5 @@ Banana Pi remote control for mplayer
 ## Usage
 
 ```
-$ node player.js
+$ node banana-player.js
 ```
