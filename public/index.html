@@ -1,13 +1,12 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML Basic 1.1//EN" "http://www.w3.org/TR/xhtml-basic/xhtml-basic11.dtd">
+<!DOCTYPE html>
 <html>
 	<head>
 		<title>Banana Play</title>
-		<meta name="mobile-web-app-capable" content="yes">
-		<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-		<link rel="icon" type="image/png" href="/favicon.png">
+		<meta name="mobile-web-app-capable" content="yes" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+		<link rel="icon" type="image/png" href="/favicon.png" />
 
-		<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+		<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
 
 		<style>
 			/* Roboto font */
@@ -42,11 +41,12 @@
 			.ui-browser-entries .entry.file .size { flex-shrink: 0; color: #bbb; }
 
 			/* player */
-			.player { flex-shrink: 0; margin-top: -10px; padding-top: 10px; background: transparent 50% 0 url(player-border.png) no-repeat; color: #eee; text-align: center; position: relative; }
+			.player { display: none; flex-shrink: 0; margin-top: -10px; padding-top: 10px; background: transparent 50% 0 url(player-border.png) no-repeat; color: #eee; text-align: center; position: relative; }
 			.player .buttons { display: flex; justify-content: center; align-items: center; background: #222; padding: 0 20px; }
 			.player button { border: 0; background: none; padding: 0; margin: 0; outline: none; color: #eee; }
 			.player button i { font-size: 48px; }
 			#play-button i { font-size: 64px; color: #f59900; margin-top: -5px; }
+			#pause-button { display: none; }
 			#pause-button i { font-size: 64px; color: #0099f5; margin-top: -5px; }
 			#filename { flex-grow: 1; word-break: break-all; }
 		</style>
@@ -94,16 +94,126 @@
 			</div>
 		</div>
 
-		<script type="text/javascript" src="https://cdn.socket.io/socket.io-1.2.0.js"></script>
 		<script type="text/javascript" src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
 		<script type="text/javascript" src="http://labs.rampinteractive.co.uk/touchSwipe/jquery.touchSwipe.min.js"></script>
 
-		<script>
+		<script type="text/javascript">
 			// this is all our explicit state for now
 			var directory = '/';
+			var lastUpdate = Date.now();
+			var playerStatus = {
+				state:    'stopped',
+				position: 0,
+				length:   0,
+				filename: ''
+			};
 
-			// initiate a socket.io connection
-			var socket = io();
+			function refreshUI() {
+				if(playerStatus.state == 'stopped')
+					$('#player').hide();
+				else
+					$('#player').show();
+
+				$('#position').text(formatTime(playerStatus.position));
+				$('#length').text(formatTime(playerStatus.length));
+				$('#progress').css({ width: '' + (100 * playerStatus.position / playerStatus.length) + '%' });
+				$('#position-slider').css({ left: '' + (100 * playerStatus.position / playerStatus.length) + '%' });
+				if(!playerStatus.filename)
+					$('#filename').text('Not playing');
+				else
+					$('#filename').text(playerStatus.filename.split('/').pop());
+
+				if(playerStatus.state == 'playing') {
+					$('#play-button').hide();
+					$('#pause-button').show();
+				}
+				else {
+					$('#play-button').show();
+					$('#pause-button').hide();
+				}
+			}
+
+			setInterval(function() {
+				if(playerStatus.state == 'playing') {
+					var now   = Date.now();
+					var delta = now - lastUpdate;
+					playerStatus.position += delta / 1000.0;
+					lastUpdate = now;
+					refreshUI();
+				}
+			}, 1000);
+
+			// construct the websocket url
+			var websocketUrl = '';
+			websocketUrl += (window.location.protocol === 'https:') ? 'wss://' : 'ws://';
+			websocketUrl += window.location.hostname;
+			websocketUrl += (window.location.port != 80 && window.location.port != 443) ? ':' + window.location.port : '';
+			websocketUrl += '/ws';
+
+			// connect to the websocket server
+			var ws = new WebSocket(websocketUrl);
+			ws.onmessage = function(msg) {
+				var data = JSON.parse(msg.data);
+				switch(data.type) {
+					case 'browse':
+						directory = data.path;
+						$('#browser-current-dir').text(data.path);
+
+						var entries = $('#browser-entries');
+						entries.html('');
+						data.directories.forEach(function(dir) {
+							entries.append($('<div>').addClass('entry directory').append('<i class="material-icons">folder</i>').append($('<span>').text(dir)).click(function() {
+								browse(data.path + dir + '/');
+							}));
+						});
+
+						data.files.forEach(function(file) {
+							entries.append($('<div>').addClass('entry file').append($('<div>').addClass('name').text(file.name)).append($('<div>').addClass('size').text(formatSize(file.size))).click(function() {
+								load(data.path + file.name);
+							}));
+						});
+						break;
+
+					case 'status':
+						delete data.type;
+						playerStatus = data;
+						lastUpdate   = Date.now();
+						refreshUI();
+						break;
+				}
+			};
+
+			function browse(path) {
+				ws.send(JSON.stringify({ type: 'browse', path: path }));
+			}
+
+			function load(path) {
+				ws.send(JSON.stringify({ type: 'load', path: path }));
+			}
+
+			function play() {
+				ws.send(JSON.stringify({ type: 'play' }));
+			}
+
+			function pause() {
+				ws.send(JSON.stringify({ type: 'pause' }));
+			}
+
+			function stop() {
+				ws.send(JSON.stringify({ type: 'stop' }));
+			}
+
+			function fullscreen() {
+				ws.send(JSON.stringify({ type: 'fullscreen' }));
+			}
+
+			function seek(percent) {
+				ws.send(JSON.stringify({ type: 'seek', percent: percent }));
+			}
+
+			function jump(ms) {
+				ws.send(JSON.stringify({ type: 'jump', ms: ms }));
+			}
 
 			// enable UI tabs
 			$('.ui-tabs').each(function() {
@@ -169,29 +279,6 @@
 			cx.fillStyle = 'rgb(0, 153, 245)';
 			cx.fill();
 
-			// main browser function
-			function browse(path) {
-				socket.emit('browse', path, function(result) {
-					directory = path;
-					$('#browser-current-dir').text(directory);
-
-					var entries = $('#browser-entries');
-					entries.html('');
-					result.directories.forEach(function(dir) {
-						entries.append($('<div>').addClass('entry directory').append('<i class="material-icons">folder</i>').append($('<span>').text(dir.name)).click(function() {
-							browse(directory + dir.name + '/');
-						}));
-					});
-
-					result.files.forEach(function(file) {
-						entries.append($('<div>').addClass('entry file').append($('<div>').addClass('name').text(file.name)).append($('<div>').addClass('size').text(formatSize(file.size))).click(function() {
-							socket.emit('command', { type: 'load', path: directory + file.name });
-						}));
-					});
-				});
-			}
-			browse(directory);
-
 			// wire up all buttons
 			$('#browser-up').click(function() {
 				if(directory != '/') {
@@ -199,32 +286,15 @@
 					browse(directory.substr(0, pos + 1));
 				}
 			});
-			$('#play-button').click(function() {
-				socket.emit('command', { type: 'pause' });
-			});
-			$('#pause-button').click(function() {
-				socket.emit('command', { type: 'pause' });
-			});
-			$('#fullscreen-button').click(function() {
-				socket.emit('command', { type: 'fullscreen' });
-			});
-			$('#stop-button').click(function() {
-				socket.emit('command', { type: 'stop' });
-			});
-			$('#rewind1m-button').click(function() {
-				socket.emit('command', { type: 'rewind1m' });
-			});
-			$('#rewind10s-button').click(function() {
-				socket.emit('command', { type: 'rewind10s' });
-			});
-			$('#forward10s-button').click(function() {
-				socket.emit('command', { type: 'forward10s' });
-			});
-			$('#forward1m-button').click(function() {
-				socket.emit('command', { type: 'forward1m' });
-			});
+			$('#play-button'      ).click(play);
+			$('#pause-button'     ).click(pause);
+			$('#fullscreen-button').click(fullscreen);
+			$('#stop-button'      ).click(stop);
+			$('#rewind1m-button'  ).click(function() { jump(-60000); });
+			$('#rewind10s-button' ).click(function() { jump(-10000); });
+			$('#forward10s-button').click(function() { jump(10000); });
+			$('#forward1m-button' ).click(function() { jump(60000); });
 			$('#position-clickarea').click(function(event) {
-				console.log(event);
 				var position;
 				if(event.pageX <= 15)
 					position = 0;
@@ -232,7 +302,7 @@
 					position = 100;
 				else
 					position = 100 * (event.pageX - 15) / ($(this).outerWidth() - 30);
-				socket.emit('command', { type: 'seek', position: position });
+				seek(position);
 			});
 
 			// helper functions
@@ -274,32 +344,6 @@
 						size = Math.round(size / 1000);
 				}
 			}
-
-			// status update event handler
-			socket.on('status', function(status) {
-				if(status.loaded)
-					$('#player').show();
-				else
-					$('#player').hide();
-
-				$('#position').text(formatTime(status.position));
-				$('#length').text(formatTime(status.length));
-				$('#progress').css({ width: '' + (100 * status.position / status.length) + '%' });
-				$('#position-slider').css({ left: '' + (100 * status.position / status.length) + '%' });
-				if(status.filename == '')
-					$('#filename').text('Not playing');
-				else
-					$('#filename').text(status.filename);
-
-				if(status.loaded && !status.paused) {
-					$('#play-button').hide();
-					$('#pause-button').show();
-				}
-				else {
-					$('#play-button').show();
-					$('#pause-button').hide();
-				}
-			});
 		</script>
 	</body>
 </html>
